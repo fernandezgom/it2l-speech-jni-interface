@@ -1,10 +1,3 @@
-//==========================================================================
-//  Copyright 2004-2011 by SAIL LABS Technology AG. All rights reserved.
-//  For details see the file SAIL_COPYRIGHT in the root of the source tree.
-//==========================================================================
-
-// $Id: sample.cpp,v 1.109 2011-11-24 12:55:33 gerhard Exp $
-
 /* CPPDOC_BEGIN_EXCLUDE */
 
 #include <jni.h>
@@ -87,6 +80,93 @@ private:
 };
 
 
+// Handle final XML result from engine
+void MyListener::xmlResult(const string& xml)
+{
+	string filename = getXmlFileName();
+	cout << endl << "Writing XML result to: " << filename << endl;
+	//ofstream os;
+	//os.open(filename.c_str(), ios_base::out);
+	//os << xml;
+	//os.close();
+	myResult=xml;
+	// optionally save a backup copy of input file and xml file
+	//optionalBackup(filename);
+}
+
+
+extern "C" {
+	//JLF: Global variables
+	ASREngine* asr;
+	MyListener listener;
+	static JavaVM *jvm = 0;
+    static jobject surface;
+
+//JLF: Method that sends data to the engine on real time	
+JNIEXPORT void JNICALL Java_Italk2learn_sendNewAudioChunk(JNIEnv * env, jobject obj, jbyteArray sample) {
+	printf("Send new chunk from C++!\n");
+#ifdef __cplusplus
+	printf("__cplusplus is defined\n");
+#else
+	printf("__cplusplus is NOT defined\n");
+#endif
+
+	jbyte *inBytes = env->GetByteArrayElements(sample, 0);
+   
+    jsize length = env->GetArrayLength( sample);
+	
+	printf("from Java: length =%d, bytes 0..3: %d %d %d %d\n",length,inBytes[0],inBytes[1],inBytes[2],inBytes[3]);
+    asr->sendData((unsigned char*)inBytes,length);
+   
+    env->ReleaseByteArrayElements(sample, inBytes, 0); // release resources
+
+}
+
+
+//JLF: Method that opens a listener and initializes the engine
+JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv * jenv, jobject surfaceView) {
+	printf("Init ASR Engine from C++!\n");
+#ifdef __cplusplus
+	printf("__cplusplus is defined\n");
+#else
+	printf("__cplusplus is NOT defined\n");
+#endif
+	jint rs = jenv->GetJavaVM(&jvm);
+    surface = jenv->NewGlobalRef(surfaceView);
+
+	string servername = "localhost";
+	int instanceNum = 1;
+	asr = new ASREngine (servername, instanceNum);
+
+	asr->addListener(&listener);
+
+	printf("Listener declared\n");
+	// start engine
+	string language ("en_ux");
+	string domain   ("broadcast-news");
+	string subdomain("base");
+	string mode     ("accurate");
+
+	asr->initialize(language, domain, subdomain, mode, 44100);
+
+	printf("ASR Initialized\n");
+	return true;
+
+}
+
+//JLF:Close the listener and retrieves the whole transcription
+JNIEXPORT jstring JNICALL Java_Italk2learn_close(JNIEnv * env, jobject) {
+    printf("Closing listener from C++\n");
+    asr->endOfData(); 
+   
+    asr->waitForJobDone();
+     
+    string result=listener.getResult();
+	printf(result.c_str());
+	return env->NewStringUTF(result.c_str());
+
+}
+
 // Handle status messages from engine
 void MyListener::status(STATUS status)
 {
@@ -107,7 +187,25 @@ void MyListener::asrResult(
 		RESULTTYPE type,
 		vector<ASREngineResult>& utterance, string speaker)
 {
-	printf("Result_real_time");
+	printf("Result_real_time\n");
+	JNIEnv *env = 0;
+    jint rs = jvm->GetEnv((void **) &env, JNI_VERSION_1_6);
+    if (rs == JNI_OK)
+        cout <<  "OK";
+    else if (rs == JNI_EDETACHED) {
+        cout << "EDETACHED\n";
+        if (jvm->AttachCurrentThread((void **) &env, NULL) < 0) {
+            cout << "Failed to get the environment using AttachCurrentThread()\n";
+        } else {
+          // Success : Attached and obtained JNIEnv!
+            cout << "success\n";
+        }
+    }
+    else if (rs == JNI_EVERSION)
+         cout << "EVERSION\n";
+    else
+         cout << "ELSE\n";
+
 	switch(type)
 	{
 		case ASR_RESULT:
@@ -124,7 +222,7 @@ void MyListener::asrResult(
 
 	if (!speaker.empty())
 		cout << " speaker: " << speaker;
-	cout << endl;
+		cout << endl;
 
 	for (vector<ASREngineResult>::iterator itr = utterance.begin();
 		  itr != utterance.end();
@@ -134,104 +232,15 @@ void MyListener::asrResult(
 		printf("Word: ");
 		string res=itr->word;
 		printf(res.c_str());
-		//JLF: I need to integrate this lines here and I dont know how because I need "env" and "obj" references
-		//jstring jstr = env->NewStringUTF(res.c_str());
-		//jclass clazz = env->FindClass("Italk2learn");
-		//jmethodID realTimeSpeech = env->GetMethodID(clazz, "realTimeSpeech", "(Ljava/lang/String;)Ljava/lang/String;");
-		//jobject result = env->CallObjectMethod(obj, realTimeSpeech, jstr);
+		jstring jstr = env->NewStringUTF(res.c_str());
+		jclass clazz = env->GetObjectClass(surface);
+		if (!clazz) printf("classfail\n");
+		jmethodID realTimeSpeech = env->GetMethodID(clazz, "realTimeSpeech", "(Ljava/lang/String;)Ljava/lang/String;");
+		if (!realTimeSpeech) printf("methodfail\n");
+		jobject result = env->CallObjectMethod(surface, realTimeSpeech, jstr);
 	}
 
 	cout << endl;
-}
-
-
-// Handle final XML result from engine
-void MyListener::xmlResult(const string& xml)
-{
-	string filename = getXmlFileName();
-	cout << endl << "Writing XML result to: " << filename << endl;
-	//ofstream os;
-	//os.open(filename.c_str(), ios_base::out);
-	//os << xml;
-	//os.close();
-	myResult=xml;
-	// optionally save a backup copy of input file and xml file
-	//optionalBackup(filename);
-}
-
-
-extern "C" {
-	//JLF: Global variables
-	ASREngine* asr;
-	MyListener listener;
-
-
-//JLF: Method that sends data to the engine on real time	
-JNIEXPORT void JNICALL Java_Italk2learn_sendNewAudioChunk(JNIEnv * env, jobject obj, jbyteArray sample) {
-	printf("Print from C++!\n");
-#ifdef __cplusplus
-	printf("__cplusplus is defined\n");
-#else
-	printf("__cplusplus is NOT defined\n");
-#endif
-
-	jbyte *inBytes = env->GetByteArrayElements(sample, 0);
-   
-    jsize length = env->GetArrayLength( sample);
-	
-	printf("from Java: length =%d, bytes 0..3: %d %d %d %d\n",length,inBytes[0],inBytes[1],inBytes[2],inBytes[3]);
-    asr->sendData((unsigned char*)inBytes,length);
-   
- 
-    env->ReleaseByteArrayElements(sample, inBytes, 0); // release resources
-
-	//jstring jstr = env->NewStringUTF("This comes from c++");
-	//jclass clazz = env->FindClass("Italk2learn");
-    //jmethodID realTimeSpeech = env->GetMethodID(clazz, "realTimeSpeech", "(Ljava/lang/String;)Ljava/lang/String;");
-    //jobject result = env->CallObjectMethod(obj, realTimeSpeech, jstr);
-
-}
-
-
-//JLF: Method that opens a listener and initializes the engine
-JNIEXPORT jboolean JNICALL Java_Italk2learn_openListener(JNIEnv *, jobject) {
-		printf("Open ASR Listener from C++!\n");
-#ifdef __cplusplus
-	printf("__cplusplus is defined\n");
-#else
-	printf("__cplusplus is NOT defined\n");
-#endif
-	string servername = "localhost";
-	int instanceNum = 1;
-	asr = new ASREngine (servername, instanceNum);
-
-	asr->addListener(&listener);
-
-	printf("Listener declared");
-	// start engine
-	string language ("en_ux");
-	string domain   ("broadcast-news");
-	string subdomain("base");
-	string mode     ("accurate");
-
-	asr->initialize(language, domain, subdomain, mode, 44100);
-
-	printf("ASR Initialized");
-	return true;
-
-}
-
-//JLF:Close the listener and retrieves the whole transcription
-JNIEXPORT jstring JNICALL Java_Italk2learn_close(JNIEnv * env, jobject) {
-		printf("Sending data to the engine");
-    asr->endOfData(); 
-   
-    asr->waitForJobDone();
-     
-    string result=listener.getResult();
-	printf("getResult");
-	return env->NewStringUTF(result.c_str());
-
 }
 
 }
