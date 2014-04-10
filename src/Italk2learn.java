@@ -61,7 +61,7 @@ public class Italk2learn {
 	}
 	
 	public static void main(String[] args) {
-		File f=new File("bbc1.wav");
+		File f=new File("gemma1.wav");
 		long l=f.length();
 		System.out.println("the file is " + l + " bytes long");
 		FileInputStream finp = null;

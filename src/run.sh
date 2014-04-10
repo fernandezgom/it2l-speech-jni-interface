@@ -3,7 +3,7 @@ cd /usr/share/MMIndexer6.2/bin/
 export LD_LIBRARY_PATH=.
 export PERL5LIB=../libx
 
-cp iT2L.so libiT2L.so.so
+sudo cp iT2L.so libiT2L.so.so
 
 echo "Compiling $1.java"
 
