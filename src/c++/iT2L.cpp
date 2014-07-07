@@ -124,7 +124,7 @@ JNIEXPORT void JNICALL Java_Italk2learn_sendNewAudioChunk(JNIEnv * env, jobject 
 
 
 //JLF: Method that opens a listener and initializes the engine
-JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv * jenv, jobject surfaceView) {
+JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv * jenv, jobject surfaceView, jstring server, jint instance, jstring languageCode, jstring model) {
 	printf("Init ASR Engine from C++!\n");
 #ifdef __cplusplus
 	printf("__cplusplus is defined\n");
@@ -134,22 +134,25 @@ JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv *
 	jint rs = jenv->GetJavaVM(&jvm);
     surface = jenv->NewGlobalRef(surfaceView);
 
-	string servername = "localhost";
-	int instanceNum = 1;
+	jboolean b=true;
+	string servername = jenv ->GetStringUTFChars(server,0);
+	int instanceNum = (int) instance;
 	asr = new ASREngine (servername, instanceNum);
 
 	asr->addListener(&listener);
 
 	printf("Listener declared\n");
 	// start engine
-	string language ("en_ux");
+	string language (jenv ->GetStringUTFChars(languageCode,0));
 	string domain   ("broadcast-news");
-	string subdomain("base");
+	string subdomain(jenv ->GetStringUTFChars(model,0));
 	string mode     ("accurate");
 
 	asr->initialize(language, domain, subdomain, mode, 44100);
 
 	printf("ASR Initialized\n");
+	//Release memory
+	//jenv -> ReleaseStringUTFChars
 	return true;
 
 }
@@ -191,7 +194,7 @@ void MyListener::asrResult(
 	JNIEnv *env = 0;
     jint rs = jvm->GetEnv((void **) &env, JNI_VERSION_1_6);
     if (rs == JNI_OK)
-        cout <<  "OK";
+        cout <<  "";
     else if (rs == JNI_EDETACHED) {
         cout << "EDETACHED\n";
         if (jvm->AttachCurrentThread((void **) &env, NULL) < 0) {
@@ -228,7 +231,7 @@ void MyListener::asrResult(
 		  itr != utterance.end();
 		  itr++)
 	{
-		cout << itr->word << "[" << itr->offset << "] ";
+		//cout << itr->word << "[" << itr->offset << "] ";
 		printf("Word: ");
 		string res=itr->word;
 		printf(res.c_str());
