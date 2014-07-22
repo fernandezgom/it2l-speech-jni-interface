@@ -160,14 +160,15 @@ JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv *
 //JLF:Close the listener and retrieves the whole transcription
 JNIEXPORT jstring JNICALL Java_Italk2learn_close(JNIEnv * env, jobject) {
     printf("Closing listener from C++\n");
-    asr->endOfData(); 
-   
+    asr->endOfData();
+  
     asr->waitForJobDone();
-     
+    
     string result=listener.getResult();
-	printf(result.c_str());
-	return env->NewStringUTF(result.c_str());
-
+    printf(result.c_str());
+    delete asr;
+    asr=0;
+    return env->NewStringUTF(result.c_str());
 }
 
 // Handle status messages from engine
