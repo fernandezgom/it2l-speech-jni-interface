@@ -9,7 +9,7 @@ public class Italk2learn {
 	//JLF: Send chunks of audio to Speech Recognition engine each 5 seconds
     public native void sendNewAudioChunk(byte[] buf);
     //JLF: Open the listener and retrieves true if the operation was right. It is executed when the user is logged in the platform and change the exercise
-    public native boolean initSpeechRecognitionEngine();
+    public native boolean initSpeechRecognitionEngine(String server, int instance, String languageCode, String model);
     //JLF: Close the listener and retrieves the whole transcription. It is executed each time the exercise change to another
     public native String close();
 	
@@ -25,11 +25,11 @@ public class Italk2learn {
 	}
 	
 	//JLF:Open the listener and retrieves true if the operation was right
-	public boolean initSpeechRecognition() {
+	public boolean initSpeechRecognition(String server, int instance, String language, String model) {
 		System.out.println("Open Listener from Java!");
 		boolean result=false;
 		try {
-			result=this.initSpeechRecognitionEngine();
+			result=this.initSpeechRecognitionEngine(server, instance, language, model);
 			System.out.println(result);
 			return result;
 		} catch (Exception e) {
@@ -80,13 +80,32 @@ public class Italk2learn {
 		byte[] aux4=Arrays.copyOfRange(b, ((int)(3*l)/4), (int)l-1);
 		try {
 			Italk2learn engine= new Italk2learn();
-			if (engine.initSpeechRecognition()){
+			Italk2learn engine2= new Italk2learn();
+			Italk2learn engine3= new Italk2learn();
+			if (engine.initSpeechRecognition("localhost",1,"en_ux","base")){
 				engine.sendNewAudioChunk(aux1);
 				engine.sendNewAudioChunk(aux2);
 				engine.sendNewAudioChunk(aux3);
 				engine.sendNewAudioChunk(aux4);
 			}
+			if (engine2.initSpeechRecognition("localhost",2,"en_ux","base")){
+				engine2.sendNewAudioChunk(aux1);
+				engine2.sendNewAudioChunk(aux2);
+				engine2.sendNewAudioChunk(aux3);
+				engine2.sendNewAudioChunk(aux4);
+			}
+			//JLF: Engine one is released
 			engine.closeEngine();
+			//JLF: Same instance of engine 1 
+			if (engine3.initSpeechRecognition("localhost",1,"en_ux","base")){
+				engine3.sendNewAudioChunk(aux1);
+				engine3.sendNewAudioChunk(aux2);
+				engine3.sendNewAudioChunk(aux3);
+				engine3.sendNewAudioChunk(aux4);
+			}
+			//JLF: Engines are released
+			engine2.closeEngine();
+			engine3.closeEngine();
 			
 		} catch (Exception e) {
 			e.printStackTrace();
