@@ -18,6 +18,8 @@
 using namespace std;
 using namespace ASR;
 
+#define MAX_ASR_INSTANCES 500
+
 //==========================================================================
 // class MyListener
 //
@@ -49,7 +51,6 @@ public:
 
 	
 private:
-
 	string m_Path;
 	bool m_createXMLAtSource;	// create resulting XML where the input-file is
 
@@ -97,10 +98,13 @@ void MyListener::xmlResult(const string& xml)
 
 extern "C" {
 	//JLF: Global variables
-	ASREngine* asr;
-	MyListener listener;
+	ASREngine* asr[MAX_ASR_INSTANCES];
+	MyListener* listener[MAX_ASR_INSTANCES];
+	int theInstance;
 	static JavaVM *jvm = 0;
-    static jobject surface;
+	static jobject surface;
+
+
 
 //JLF: Method that sends data to the engine on real time	
 JNIEXPORT void JNICALL Java_Italk2learn_sendNewAudioChunk(JNIEnv * env, jobject obj, jbyteArray sample) {
@@ -113,13 +117,16 @@ JNIEXPORT void JNICALL Java_Italk2learn_sendNewAudioChunk(JNIEnv * env, jobject 
 
 	jbyte *inBytes = env->GetByteArrayElements(sample, 0);
    
-    jsize length = env->GetArrayLength( sample);
+	jsize length = env->GetArrayLength(sample);
 	
 	printf("from Java: length =%d, bytes 0..3: %d %d %d %d\n",length,inBytes[0],inBytes[1],inBytes[2],inBytes[3]);
-    asr->sendData((unsigned char*)inBytes,length);
-   
-    env->ReleaseByteArrayElements(sample, inBytes, 0); // release resources
 
+	jclass thisClass = env->GetObjectClass(obj);
+	jfieldID fidNumber = env->GetFieldID(thisClass, "instanceNum", "I");
+	jint instanceNumber=env->GetIntField(obj, fidNumber);
+	asr[instanceNumber]->sendData((unsigned char*)inBytes,length);
+   
+	env->ReleaseByteArrayElements(sample, inBytes, 0); // release resources
 }
 
 
@@ -132,43 +139,67 @@ JNIEXPORT jboolean JNICALL Java_Italk2learn_initSpeechRecognitionEngine(JNIEnv *
 	printf("__cplusplus is NOT defined\n");
 #endif
 	jint rs = jenv->GetJavaVM(&jvm);
-    surface = jenv->NewGlobalRef(surfaceView);
+	surface = jenv->NewGlobalRef(surfaceView);
 
 	jboolean b=true;
 	string servername = jenv ->GetStringUTFChars(server,0);
 	int instanceNum = (int) instance;
-	asr = new ASREngine (servername, instanceNum);
 
-	asr->addListener(&listener);
+	if(instanceNum >= MAX_ASR_INSTANCES)
+	{
+		cerr << "ERROR IN ENGINE INITIALIZATION - instance " << instanceNum << " is more than allocated (" << MAX_ASR_INSTANCES << endl;
+		return false;
+	}
+
+	try
+	{
+		ASREngine* asrEng = new ASREngine (servername, instanceNum);
+		asr[instance]=asrEng;
+		listener[instance] = new MyListener;
+		theInstance=instance;
+	}
+	catch (ASREngineException e)
+	{
+		cerr << "ERROR IN ENGINE INITIALIZATION: " << e.getMsg() << endl;
+		cout << endl << "Creation failed" << endl;
+		return false;
+	}
+
+	asr[instance]->addListener(&*listener[instance]);
 
 	printf("Listener declared\n");
 	// start engine
 	string language (jenv ->GetStringUTFChars(languageCode,0));
 	string domain   ("broadcast-news");
 	string subdomain(jenv ->GetStringUTFChars(model,0));
+	//string subdomain("cnn1");
 	string mode     ("accurate");
 
-	asr->initialize(language, domain, subdomain, mode, 44100);
+	asr[instance]->initialize(language, domain, subdomain, mode, 44100);
 
 	printf("ASR Initialized\n");
 	//Release memory
 	//jenv -> ReleaseStringUTFChars
 	return true;
-
 }
 
 //JLF:Close the listener and retrieves the whole transcription
-JNIEXPORT jstring JNICALL Java_Italk2learn_close(JNIEnv * env, jobject) {
-    printf("Closing listener from C++\n");
-    asr->endOfData();
-  
-    asr->waitForJobDone();
-    
-    string result=listener.getResult();
-    printf(result.c_str());
-    delete asr;
-    asr=0;
-    return env->NewStringUTF(result.c_str());
+JNIEXPORT jstring JNICALL Java_Italk2learn_close(JNIEnv * env, jobject obj) {
+	printf("Closing listener from C++\n");
+
+	jclass thisClass = env->GetObjectClass(obj);
+	jfieldID fidNumber = env->GetFieldID(thisClass, "instanceNum", "I");
+	jint instanceNumber=env->GetIntField(obj, fidNumber);
+	asr[instanceNumber]->endOfData(); 
+	asr[instanceNumber]->waitForJobDone();
+
+	string result=listener[instanceNumber]->getResult();
+	printf(result.c_str());
+	delete asr[instanceNumber];
+	asr[instanceNumber]=0;
+	delete listener[instanceNumber];
+	listener[instanceNumber]=0;
+	return env->NewStringUTF(result.c_str());
 }
 
 // Handle status messages from engine
