@@ -84,9 +84,9 @@ public static void main(String[] args) {
 		e1.printStackTrace();
 	}
 	byte[] aux1=Arrays.copyOfRange(b, 0, (int)l/4);
-	byte[] aux2=Arrays.copyOfRange(b, ((int)l/4)+1, (int)l/2);
-	byte[] aux3=Arrays.copyOfRange(b, ((int)l/2)+1, (int)(3*l)/4);
-	byte[] aux4=Arrays.copyOfRange(b, ((int)(3*l)/4), (int)l-1);
+	byte[] aux2=Arrays.copyOfRange(b, ((int)l/4), (int)l/2);
+	byte[] aux3=Arrays.copyOfRange(b, ((int)l/2), (int)(3*l)/4);
+	byte[] aux4=Arrays.copyOfRange(b, ((int)(3*l)/4), (int)l);
 	try {
 		Italk2learn engine1= new Italk2learn();
 		Italk2learn engine2= new Italk2learn();
